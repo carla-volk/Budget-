@@ -771,10 +771,10 @@ function bindEvents(d){
     try{
       const d2=derived();
       const payload={month:MONTHS[state.mo],year:state.yr,income:d2.mIncome,spent:d2.mSpent,goal:state.goal,saved:d2.mSaved,categories:d2.catT.map(c=>({name:c.name,fixed:c.fixed,budget:c.budget,spent:c.spent,pct:pct(c.spent,c.budget)})),incomes:d2.mIncs,expenses:d2.mExps.slice(0,25),accounts:state.accs};
-      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:900,system:'Eres experto en finanzas. Devuelve SOLO JSON sin markdown: {"resumen":"string","alertas":["string"],"recomendaciones":[{"titulo":"string","detalle":"string","ahorro":number}],"categorias_reducir":[{"nombre":"string","potencial":number,"sugerencia":"string"}],"puntuacion":number,"conclusion":"string"}',messages:[{role:"user",content:"Analiza: "+JSON.stringify(payload)}]})});
+      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:900,system:'Eres experto en finanzas personales. Devuelve SOLO JSON sin markdown: {"resumen":"string","alertas":["string"],"recomendaciones":[{"titulo":"string","detalle":"string","ahorro":number}],"categorias_reducir":[{"nombre":"string","potencial":number,"sugerencia":"string"}],"puntuacion":number,"conclusion":"string"}',messages:[{role:"user",content:"Analiza: "+JSON.stringify(payload)}]})});
       const j=await r.json();
       mut(s=>{s.aiRes=JSON.parse(j.content.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim());s.aiLoad=false;});
-    }catch{mut(s=>{s.aiRes={error:"Sin conexión. El análisis IA requiere internet."};s.aiLoad=false;});}
+    }catch(e){mut(s=>{s.aiRes={error:"Error al conectar con la IA: "+e.message};s.aiLoad=false;});}
   });
 }
 

@@ -326,6 +326,12 @@ function modalIncome(editItem){
     <div class="fgroup"><label class="flabel">Categoría</label>
       <select class="fselect" id="m-cat" style="border-color:#00e5a040">${cats.map(c=>`<option value="${c}"${e.category===c?" selected":""}>${c}</option>`).join("")}</select>
     </div>
+    <div class="fgroup"><label class="flabel">Cuenta (suma al saldo)</label>
+      <select class="fselect" id="m-acc-id" style="border-color:#00e5a040">
+        <option value="">— Sin cuenta —</option>
+        ${state.accs.map(a=>`<option value="${a.id}"${e.accId===a.id?" selected":""}>🏦 ${a.name} · ${fmt(a.balance)}</option>`).join("")}
+      </select>
+    </div>
     <div class="fgroup"><label class="flabel">Fecha</label><input class="finput" id="m-date" type="date" value="${e.date||today()}" style="border-color:#00e5a040"/></div>
     <div class="fgroup"><label class="flabel">¿Es recurrente?</label>
       <div style="display:flex;align-items:center;gap:10px">
@@ -338,7 +344,7 @@ function modalIncome(editItem){
         <select class="fselect" id="m-freq" style="border-color:#00e5a040">${REC_FREQ.map(f=>`<option value="${f}"${e.freq===f?" selected":""}>${f}</option>`).join("")}</select>
       </div>
     </div>
-    <div class="btn-row"><button class="btn btn-out" id="close-modal2">Cancelar</button><button class="btn btn-acc" id="save-inc" data-id="${e.id||""}">${isEdit?"Guardar Cambios":"Guardar Ingreso"}</button></div>
+    <div class="btn-row"><button class="btn btn-out" id="close-modal2">Cancelar</button><button class="btn btn-acc" id="save-inc" data-id="${e.id||""}" data-old-acc="${e.accId||""}" data-old-amt="${e.amount||0}">${isEdit?"Guardar Cambios":"Guardar Ingreso"}</button></div>
   </div></div>`;
 }
 
@@ -518,7 +524,7 @@ function buildApp(d){
       const catCards=catT.filter(c=>c.spent>0||c.budget>0).map(c=>`<div class="card" style="padding:11px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><div style="display:flex;align-items:center;gap:5px"><span>${c.icon}</span><span style="font-weight:700;font-size:11px">${c.name}</span></div>${badge(c.fixed?"Fijo":"Var",c.fixed?"#4d9fff":"#ffc94a")}</div><div style="display:flex;justify-content:space-between;font-size:11px;color:var(--sub);margin-bottom:4px"><span style="font-weight:700;color:var(--text);font-size:12px">${fmt(c.spent)}</span><span>/ ${fmt(c.budget)}</span></div>${pbar(c.spent,c.budget)}</div>`).join("");
       pageHtml=`${subTabs}<div class="sec-head"><div><div class="title">Gastos de ${MONTHS[mo]}</div><div class="sub">Total: ${fmt(mSpent)}</div></div><button class="btn-sm btn-acc" id="open-exp">+ Añadir</button></div><div class="g2" style="margin-bottom:12px">${catCards}</div>${card(`<div style="font-weight:700;font-size:13px;margin-bottom:10px">Transacciones</div>${rows||`<div class="empty"><div class="ico">📋</div><div class="t">Sin gastos</div></div>`}`)}`;
     } else {
-      const rows=[...mIncs].sort((a,b)=>b.date.localeCompare(a.date)).map(i=>trow(i.id+"_inc","💵",hex2rgba("#00e5a0",.12),i.desc,i.category+" · "+i.date,fmt(i.amount),"#00e5a0",i.recurring)).join("");
+      const rows=[...mIncs].sort((a,b)=>b.date.localeCompare(a.date)).map(i=>{const acc=accs.find(a=>a.id===i.accId);return trow(i.id+"_inc","💵",hex2rgba("#00e5a0",.12),i.desc,i.category+(acc?" · 🏦"+acc.name:"")+" · "+i.date,fmt(i.amount),"#00e5a0",i.recurring);}).join("");
       pageHtml=`${subTabs}<div class="sec-head"><div><div class="title">Ingresos de ${MONTHS[mo]}</div><div class="sub">Total: <span style="color:#00e5a0;font-weight:700">${fmt(mIncome)}</span></div></div><button class="btn-sm btn-acc" id="open-inc">+ Añadir</button></div>${incPie.length>0?card(`<div style="font-weight:700;font-size:12px;margin-bottom:10px">Distribución</div>${donutChart(incPie)}`,"","margin-bottom:10px"):""}${card(`<div style="font-weight:700;font-size:13px;margin-bottom:10px">Registro</div>${rows||`<div class="empty"><div class="ico">💵</div><div class="t">Sin ingresos</div></div>`}`)}`;
     }
   }
@@ -673,18 +679,29 @@ function bindEvents(d){
     const desc=document.getElementById("m-desc")?.value.trim();
     const amount=parseFloat(document.getElementById("m-amount")?.value);
     const category=document.getElementById("m-cat")?.value;
+    const accId=document.getElementById("m-acc-id")?.value?+document.getElementById("m-acc-id")?.value:null;
     const date=document.getElementById("m-date")?.value||today();
     const recurring=document.getElementById("m-rec")?.checked||false;
     const freq=document.getElementById("m-freq")?.value||"Mensual";
     const editId=document.getElementById("save-inc")?.dataset.id;
+    const oldAccId=document.getElementById("save-inc")?.dataset.oldAcc?+document.getElementById("save-inc")?.dataset.oldAcc:null;
+    const oldAmt=parseFloat(document.getElementById("save-inc")?.dataset.oldAmt)||0;
     if(!desc||isNaN(amount)||amount<=0){showToast("⚠️ Completa descripción e importe","warn");return;}
     mut(s=>{
-      const item={id:editId?+editId:uid(),desc,amount,category,date,recurring,freq};
-      if(editId){s.incs={...s.incs,[key]:(s.incs[key]||[]).map(i=>String(i.id)===String(editId)?item:i)};}
-      else{s.incs={...s.incs,[key]:[...(s.incs[key]||[]),item]};}
+      const item={id:editId?+editId:uid(),desc,amount,category,accId,date,recurring,freq};
+      if(editId){
+        s.incs={...s.incs,[key]:(s.incs[key]||[]).map(i=>String(i.id)===String(editId)?item:i)};
+        // revert old account balance, apply new
+        if(oldAccId)s.accs=s.accs.map(a=>a.id===oldAccId?{...a,balance:Math.round((a.balance-oldAmt)*100)/100}:a);
+        if(accId)s.accs=s.accs.map(a=>a.id===accId?{...a,balance:Math.round((a.balance+amount)*100)/100}:a);
+      } else {
+        s.incs={...s.incs,[key]:[...(s.incs[key]||[]),item]};
+        if(accId)s.accs=s.accs.map(a=>a.id===accId?{...a,balance:Math.round((a.balance+amount)*100)/100}:a);
+      }
       s.modal=null;save();
     });
-    showToast(editId?"✅ Ingreso actualizado":"✅ Ingreso guardado","success");
+    const accName=accId?state.accs.find(a=>a.id===accId)?.name:"";
+    showToast((editId?"✅ Ingreso actualizado":"✅ Ingreso guardado")+(accName?" · Sumado a "+accName:""),"success");
   });
 
   // save account
@@ -746,7 +763,12 @@ function bindEvents(d){
         if(exp?.accId)s.accs=s.accs.map(a=>a.id===exp.accId?{...a,balance:Math.round((a.balance+exp.amount)*100)/100}:a);
         s.exps={...s.exps,[key]:(s.exps[key]||[]).filter(e=>String(e.id)!==id)};
       }
-      else if(raw.endsWith("_inc")){const id=raw.replace("_inc","");s.incs={...s.incs,[key]:(s.incs[key]||[]).filter(i=>String(i.id)!==id)};}
+      else if(raw.endsWith("_inc")){
+        const id=raw.replace("_inc","");
+        const inc=(s.incs[key]||[]).find(i=>String(i.id)===id);
+        if(inc?.accId)s.accs=s.accs.map(a=>a.id===inc.accId?{...a,balance:Math.round((a.balance-inc.amount)*100)/100}:a);
+        s.incs={...s.incs,[key]:(s.incs[key]||[]).filter(i=>String(i.id)!==id)};
+      }
       save();
     });
     showToast("🗑️ Eliminado","success");
@@ -765,22 +787,110 @@ function bindEvents(d){
   document.getElementById("import-file")?.addEventListener("change",e=>importData(e.target.files[0]));
 
   // AI
-  document.getElementById("run-ai")?.addEventListener("click",async()=>{
+  document.getElementById("run-ai")?.addEventListener("click",()=>{
     if(state.aiLoad)return;
     mut(s=>{s.aiLoad=true;s.aiRes=null;});
-    try{
+
+    // ── Motor de análisis financiero local ──
+    setTimeout(()=>{
       const d2=derived();
-      const payload={month:MONTHS[state.mo],year:state.yr,income:d2.mIncome,spent:d2.mSpent,goal:state.goal,saved:d2.mSaved,categories:d2.catT.map(c=>({name:c.name,fixed:c.fixed,budget:c.budget,spent:c.spent,pct:pct(c.spent,c.budget)})),incomes:d2.mIncs,expenses:d2.mExps.slice(0,25),accounts:state.accs};
-      const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:900,system:'Eres experto en finanzas personales. Devuelve SOLO JSON sin markdown: {"resumen":"string","alertas":["string"],"recomendaciones":[{"titulo":"string","detalle":"string","ahorro":number}],"categorias_reducir":[{"nombre":"string","potencial":number,"sugerencia":"string"}],"puntuacion":number,"conclusion":"string"}',messages:[{role:"user",content:"Analiza: "+JSON.stringify(payload)}]})});
-      const j=await r.json();
-      if(!r.ok||!j.content){
-        const errMsg=j.error?.message||j.type||"API error "+r.status;
-        mut(s=>{s.aiRes={error:"Error API: "+errMsg};s.aiLoad=false;});
-        return;
+      const {mIncome,mSpent,mSaved,mRate,catT}=d2;
+      const goal=state.goal;
+      const accs=state.accs;
+
+      // ── Puntuación ──
+      let score=100;
+      let alertas=[];
+      let recomendaciones=[];
+      let categorias_reducir=[];
+
+      // Tasa de ahorro
+      if(mRate<0){score-=30;alertas.push("Estás gastando más de lo que ganas este mes.");}
+      else if(mRate<10){score-=20;alertas.push("Tu tasa de ahorro es muy baja ("+mRate+"%). Lo ideal es al menos 20%.");}
+      else if(mRate<20){score-=10;alertas.push("Tu tasa de ahorro ("+mRate+"%) está por debajo del 20% recomendado.");}
+
+      // Meta de ahorro
+      if(goal>0&&mSaved<goal){
+        const diff=goal-mSaved;
+        score-=10;
+        alertas.push("No alcanzaste tu meta de ahorro. Te faltan "+fmt(diff)+".");
+        recomendaciones.push({titulo:"Alcanza tu meta de ahorro",detalle:"Para llegar a tu meta de "+fmt(goal)+" necesitas reducir gastos en "+fmt(diff)+". Revisa categorías variables primero.",ahorro:Math.round(diff)});
       }
-      const txt=j.content.map(b=>b.text||"").join("").replace(/```json|```/g,"").trim();
-      mut(s=>{s.aiRes=JSON.parse(txt);s.aiLoad=false;});
-    }catch(e){mut(s=>{s.aiRes={error:"Error al conectar con la IA: "+e.message};s.aiLoad=false;});}
+
+      // Categorías excedidas
+      const excedidas=catT.filter(c=>c.spent>c.budget&&c.budget>0);
+      excedidas.forEach(c=>{
+        const extra=c.spent-c.budget;
+        score-=8;
+        alertas.push(c.name+" excedió su presupuesto en "+fmt(extra)+".");
+        categorias_reducir.push({nombre:c.name,potencial:Math.round(extra),sugerencia:"Reducir a tu presupuesto de "+fmt(c.budget)+" te ahorraría "+fmt(extra)+" al mes."});
+      });
+
+      // Categorías con alto gasto variable
+      const varAltas=catT.filter(c=>!c.fixed&&c.spent>0&&c.budget>0&&pct(c.spent,c.budget)>75&&!excedidas.find(e=>e.id===c.id));
+      varAltas.slice(0,3).forEach(c=>{
+        const potencial=Math.round(c.spent*0.15);
+        categorias_reducir.push({nombre:c.name,potencial,sugerencia:"Estás usando el "+pct(c.spent,c.budget)+"% de tu presupuesto en "+c.name+". Reducir un 15% te ahorraría "+fmt(potencial)+" al mes."});
+      });
+
+      // Sin ingresos registrados
+      if(mIncome===0){score-=15;alertas.push("No tienes ingresos registrados este mes.");}
+
+      // Sin cuentas
+      if(accs.length===0){recomendaciones.push({titulo:"Añade tus cuentas bancarias",detalle:"Registrar tus cuentas te permite ver tu patrimonio total y llevar un control real de tu dinero.",ahorro:0});}
+
+      // Gastos fijos vs variables
+      const totalFijo=catT.filter(c=>c.fixed).reduce((a,c)=>a+c.spent,0);
+      const totalVar=catT.filter(c=>!c.fixed).reduce((a,c)=>a+c.spent,0);
+      if(mIncome>0&&totalFijo/mIncome>0.6){
+        score-=10;
+        alertas.push("Tus gastos fijos representan el "+Math.round(totalFijo/mIncome*100)+"% de tus ingresos, lo cual es muy alto.");
+        recomendaciones.push({titulo:"Reduce compromisos fijos",detalle:"Lo ideal es que los gastos fijos no superen el 50% de tus ingresos. Revisa suscripciones y compromisos recurrentes.",ahorro:Math.round(totalFijo*0.1)});
+      }
+
+      // Recomendación de fondo de emergencia
+      if(mRate>=20){
+        recomendaciones.push({titulo:"Construye tu fondo de emergencia",detalle:"Con tu tasa de ahorro del "+mRate+"% vas muy bien. Destina 3-6 meses de gastos ("+fmt(mSpent*3)+"–"+fmt(mSpent*6)+") a un fondo de emergencia.",ahorro:0});
+      }
+
+      // Recomendación genérica de inversión
+      if(mSaved>goal*1.5&&goal>0){
+        recomendaciones.push({titulo:"Considera invertir tu excedente",detalle:"Tienes un superávit de "+fmt(mSaved-goal)+" sobre tu meta. Considera opciones de inversión como fondos indexados o cuentas de ahorro de alto rendimiento.",ahorro:0});
+      }
+
+      // Sin gastos variables altos — positivo
+      if(varAltas.length===0&&excedidas.length===0&&mSpent>0){
+        recomendaciones.push({titulo:"¡Buen control de gastos!",detalle:"Todas tus categorías variables están dentro del presupuesto. Sigue así y considera aumentar tu meta de ahorro.",ahorro:0});
+      }
+
+      // Clamp score
+      score=Math.max(10,Math.min(100,score));
+
+      // ── Resumen ──
+      const resumen=mIncome===0
+        ?"No tienes ingresos registrados este mes. Añade tus ingresos para obtener un análisis completo."
+        :mRate>=20
+          ?"Excelente mes — tienes una tasa de ahorro del "+mRate+"% y un excedente de "+fmt(mSaved)+". Estás en la dirección correcta."
+          :mRate>=10
+            ?"Mes razonable con un ahorro del "+mRate+"%. Puedes mejorar reduciendo gastos variables y optimizando categorías excedidas."
+            :mRate>=0
+              ?"Mes ajustado — solo el "+mRate+"% de ahorro. Revisa tus gastos variables y asegúrate de cumplir tu presupuesto."
+              :"Mes en negativo — gastaste "+fmt(Math.abs(mSaved))+" más de lo que ganaste. Es urgente revisar y reducir gastos.";
+
+      // ── Conclusión ──
+      const conclusion=score>=80
+        ?"Tu salud financiera este mes es muy buena. Mantén la disciplina, aumenta gradualmente tu meta de ahorro y considera invertir el excedente."
+        :score>=60
+          ?"Tienes una base sólida pero hay áreas de mejora. Enfócate en las categorías excedidas y en aumentar tu tasa de ahorro al 20%."
+          :score>=40
+            ?"Necesitas atención en tus finanzas este mes. Prioriza reducir gastos no esenciales y asegúrate de no gastar más de lo que ingresas."
+            :"Situación financiera crítica este mes. Revisa urgentemente todos tus gastos y busca formas de aumentar ingresos o reducir compromisos.";
+
+      mut(s=>{
+        s.aiRes={resumen,alertas,recomendaciones,categorias_reducir,puntuacion:score,conclusion};
+        s.aiLoad=false;
+      });
+    },800); // simula tiempo de procesamiento
   });
 }
 

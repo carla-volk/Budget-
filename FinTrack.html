@@ -11,7 +11,7 @@ html,body{background:#0a0c10;color:#e2e8f0;font-family:-apple-system,BlinkMacSys
 :root{--bg:#0a0c10;--surf:#111318;--card:#161a22;--bord:#1e2330;--acc:#00e5a0;--warn:#ff6b35;--dang:#ff3b5c;--gold:#ffc94a;--blue:#4d9fff;--text:#e2e8f0;--sub:#718096}
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-@keyframes slideDown{from{opacity:0;transform:translateY(-20px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
 .fi{animation:fadeIn .3s ease}
 input,select,button,textarea{font-family:inherit;outline:none;-webkit-appearance:none}
 button{cursor:pointer}
@@ -95,11 +95,11 @@ button{cursor:pointer}
 .trend-bars{display:flex;gap:2px;align-items:flex-end;height:65px}
 .trend-bar{width:10px;border-radius:3px 3px 0 0;min-height:2px;transition:height .5s}
 .trend-label{font-size:9px;color:var(--sub)}
-/* Toast notification - fixed at top, doesn't overlap content */
-.toast{position:fixed;top:60px;left:12px;right:12px;z-index:800;border-radius:12px;padding:10px 14px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px;animation:slideDown .3s ease;box-shadow:0 4px 20px rgba(0,0,0,.4)}
-.toast.warn{background:#ff6b3520;border:1px solid #ff6b3550;color:#ff6b35}
-.toast.danger{background:#ff3b5c20;border:1px solid #ff3b5c50;color:#ff3b5c}
-.toast.success{background:#00e5a020;border:1px solid #00e5a050;color:#00e5a0}
+/* Toast notification - fixed at BOTTOM above nav */
+.toast{position:fixed;bottom:74px;left:12px;right:12px;z-index:800;border-radius:12px;padding:10px 14px;font-size:12px;font-weight:600;display:flex;align-items:center;gap:8px;animation:slideUp .3s ease;box-shadow:0 -2px 20px rgba(0,0,0,.4)}
+.toast.warn{background:#1a1000;border:1px solid #ff6b3560;color:#ff6b35}
+.toast.danger{background:#1a0008;border:1px solid #ff3b5c60;color:#ff3b5c}
+.toast.success{background:#001a10;border:1px solid #00e5a060;color:#00e5a0}
 /* Calc buttons */
 .calc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
 .calc-btn{background:var(--surf);border:1px solid var(--bord);border-radius:9px;padding:10px;font-size:15px;font-weight:700;color:var(--text);font-family:inherit}
@@ -181,7 +181,11 @@ function derived(){
 
 function mut(fn){fn(state);render();}
 function save(){S.set("ft_cats",state.cats);S.set("ft_exps",state.exps);S.set("ft_incs",state.incs);S.set("ft_accs",state.accs);S.set("ft_goal",state.goal);S.set("ft_inccats",state.incCats);S.set("ft_recurring",state.recurring);S.set("ft_transfers",state.transfers||[]);}
-function showToast(msg,type="success"){if(state.toastTimer)clearTimeout(state.toastTimer);state.toast={msg,type};state.toastTimer=setTimeout(()=>mut(s=>{s.toast=null;}),3500);render();}
+function showToast(msg,type="success"){
+  if(state.toastTimer)clearTimeout(state.toastTimer);
+  state.toast={msg,type};
+  state.toastTimer=setTimeout(()=>{state.toast=null;render();},2500);
+}
 
 // ── Export/Import ──
 function exportData(){
@@ -484,7 +488,7 @@ function buildApp(d){
   else if(modal?.startsWith("edit-acc-")){const id=+modal.replace("edit-acc-","");const acc=accs.find(a=>a.id===id);if(acc)modalHtml=modalAccount(acc);}
 
   // toast
-  const toastHtml=toast?`<div class="toast ${toast.type}">${toast.msg}<button onclick="mut(s=>s.toast=null)" style="background:none;border:none;color:inherit;font-size:16px;margin-left:auto">×</button></div>`:"";
+  const toastHtml=toast?`<div class="toast ${toast.type}">${toast.msg}<button id="close-toast" style="background:none;border:none;color:inherit;font-size:16px;margin-left:auto">×</button></div>`:"";
 
   const TABS=[{id:"dashboard",icon:"📊",label:"Inicio"},{id:"movimientos",icon:"💸",label:"Movimientos"},{id:"cuentas",icon:"🏦",label:"Cuentas"},{id:"presupuesto",icon:"🎯",label:"Budget"},{id:"analisis",icon:"🤖",label:"IA"}];
   const navHtml=`<nav class="nav">${TABS.map(t=>`<button class="${tab===t.id?"act":""}" data-tab="${t.id}"><span class="ico">${t.icon}</span>${t.label}</button>`).join("")}</nav>`;
@@ -567,6 +571,12 @@ function calcEval(){
 // ── Events ──
 function bindEvents(d){
   const{key,mExps,mIncs}=d;
+
+  // toast close
+  document.getElementById("close-toast")?.addEventListener("click",()=>{
+    if(state.toastTimer)clearTimeout(state.toastTimer);
+    state.toast=null;render();
+  });
 
   // nav
   document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>mut(s=>{s.tab=b.dataset.tab;})));

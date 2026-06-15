@@ -266,7 +266,8 @@ function calcHTML(currentVal,inputId){
   return`<div style="margin-top:6px">
     <div style="background:var(--surf);border:1px solid var(--bord);border-radius:10px;padding:8px 12px;font-size:18px;font-weight:800;text-align:right;min-height:40px;color:var(--acc)" id="calc-display">${currentVal||"0"}</div>
     <div class="calc-grid">
-      ${["7","8","9","÷","4","5","6","×","1","2","3","−","C","0",".","="].map(k=>`<button class="calc-btn${["÷","×","−","+"].includes(k)?" op":k==="="?" eq":k==="C"?" clr":""}" data-calc="${k}">${k}</button>`).join("")}
+      ${["7","8","9","÷","4","5","6","×","1","2","3","−","C","0",".","=","+","","",""].slice(0,16).map(k=>k?`<button class="calc-btn${["÷","×","−","+"].includes(k)?" op":k==="="?" eq":k==="C"?" clr":""}" data-calc="${k}">${k}</button>`:"").join("")}
+      <button class="calc-btn op" data-calc="+" style="grid-column:span 4">＋ Sumar</button>
     </div>
     <button id="calc-sum" style="width:100%;margin-top:8px;background:#4d9fff20;border:1px solid #4d9fff40;border-radius:9px;padding:8px;color:#4d9fff;font-weight:700;font-size:12px;font-family:inherit">✅ Usar este valor en el campo</button>
   </div>`;

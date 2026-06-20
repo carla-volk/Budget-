@@ -312,7 +312,8 @@ function cssBar(items){
   return items.map(i=>{
     const wp=clamp(i.val/max*100,0,100),bp=i.budget?clamp(i.budget/max*100,0,100):0;
     const c=pc(pct(i.val,i.budget||i.val));
-    return`<div class="cbar-row"><div class="cbar-label" title="${i.label}">${i.label}</div><div class="cbar-track">${i.budget?`<div class="cbar-bg" style="width:${bp}%;background:${i.color}"></div>`:""}<div class="cbar-fill" style="width:${wp}%;background:${c}"></div></div><div class="cbar-val" style="color:${c}">${fmt(i.val)}</div></div>`;
+    const op=i.opacity!==undefined?i.opacity:1;
+    return`<div class="cbar-row" style="opacity:${op}"><div class="cbar-label" title="${i.label}">${i.label}</div><div class="cbar-track">${i.budget?`<div class="cbar-bg" style="width:${bp}%;background:${i.color}"></div>`:""}<div class="cbar-fill" style="width:${wp}%;background:${c}"></div></div><div class="cbar-val" style="color:${c}">${fmt(i.val)}</div></div>`;
   }).join("");
 }
 
@@ -743,14 +744,30 @@ function buildApp(d){
 
       <!-- Donut de gastos -->
       <div class="card">
-        <div style="font-weight:700;font-size:14px;margin-bottom:12px">🍩 Distribución por Categoría</div>
-        ${donut(catT.filter(c=>c.spent>0).map(c=>({name:c.name,v:c.spent,color:c.color})))}
+        <div style="font-weight:700;font-size:14px;margin-bottom:12px">🍩 ${cf==="all"?"Distribución por Categoría":cats.find(c=>c.id===cf)?.name||"Categoría"}</div>
+        ${cf==="all"
+          ? donut(catT.filter(c=>c.spent>0).map(c=>({name:c.name,v:c.spent,color:c.color})))
+          : filtExps.length===0
+            ? `<div class="empty" style="padding:16px"><div class="ico">📊</div><div class="s">Sin gastos en esta categoría</div></div>`
+            : `<div>${filtExps.sort((a,b)=>b.date.localeCompare(a.date)).map(e=>{
+                const acc=ST.accs.find(a=>a.id===e.accId);
+                const cat=ST.cats.find(c=>c.id===e.catId)||{color:PAL[0]};
+                return`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bord)">
+                  <div style="width:8px;height:8px;border-radius:50%;background:${cat.color};flex-shrink:0"></div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.desc}</div>
+                    <div style="font-size:11px;color:var(--sub);margin-top:1px">${formatDate(e.date||today())}${acc?" · 🏦"+acc.name:""}</div>
+                  </div>
+                  <div style="font-weight:800;font-size:14px;color:var(--dang)">-${fmt(e.amount)}</div>
+                </div>`;
+              }).join("")}</div>`
+        }
       </div>
 
       <!-- Gasto vs Presupuesto -->
       <div class="card">
         <div style="font-weight:700;font-size:14px;margin-bottom:14px">📊 Gasto vs Presupuesto</div>
-        ${cssBar(catData.map(c=>({label:c.name,val:c.spent,budget:c.budget,color:c.color})))}
+        ${cssBar(catData.map(c=>({label:c.name,val:c.spent,budget:c.budget,color:cf===c.id?c.color:cf==="all"?c.color:h2r(c.color,.3),opacity:cf!=="all"&&cf!==c.id?0.4:1})))}
       </div>
 
       <!-- Tendencia 6 meses -->
@@ -827,12 +844,12 @@ function buildApp(d){
         ${aiLoad?`<span style="animation:pulse 1s infinite;color:var(--sub)">⏳ Analizando...</span>`:"🤖 Analizar mis Finanzas"}
       </button>
 
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-        <div class="card-sm"><div style="font-size:10px;color:var(--sub);font-weight:600;letter-spacing:.8px;margin-bottom:8px">RESUMEN</div>
-          ${[{l:"Ingresos",v:fmt(mIncome),c:"var(--acc)"},{l:"Gastos",v:fmt(mSpent),c:mSpent>mIncome?"var(--dang)":"var(--warn)"},{l:"Fijos",v:fmt(mFixed),c:"var(--blue)"},{l:"Variables",v:fmt(mVar),c:"var(--gold)"},{l:"Ahorro",v:fmt(Math.max(mSaved,0)),c:"var(--acc)"},{l:"Tasa",v:mRate+"%",c:mRate>=20?"var(--acc)":mRate>=10?"var(--gold)":"var(--dang)"}].map(r=>`<div class="stat-row"><span class="sl">${r.l}</span><span class="sv" style="color:${r.c}">${r.v}</span></div>`).join("")}
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px">
+        <div class="card-sm"><div style="font-size:10px;color:var(--sub);font-weight:600;letter-spacing:.8px;margin-bottom:8px">RESUMEN DEL MES</div>
+          ${[{l:"Ingresos",v:fmt(mIncome),c:"var(--acc)"},{l:"Gastos",v:fmt(mSpent),c:mSpent>mIncome?"var(--dang)":"var(--warn)"},{l:"Fijos",v:fmt(mFixed),c:"var(--blue)"},{l:"Variables",v:fmt(mVar),c:"var(--gold)"},{l:"Ahorro",v:fmt(Math.max(mSaved,0)),c:"var(--acc)"},{l:"Tasa de ahorro",v:mRate+"%",c:mRate>=20?"var(--acc)":mRate>=10?"var(--gold)":"var(--dang)"}].map(r=>`<div class="stat-row"><span class="sl">${r.l}</span><span class="sv" style="color:${r.c}">${r.v}</span></div>`).join("")}
         </div>
         <div class="card-sm"><div style="font-size:10px;color:var(--sub);font-weight:600;letter-spacing:.8px;margin-bottom:8px">TOP GASTOS</div>
-          ${[...catT].sort((a,b)=>b.spent-a.spent).slice(0,6).map((c,i)=>`<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--bord)"><span style="color:var(--sub);font-size:10px;width:14px;font-weight:700">${i+1}</span><span>${c.icon}</span><span style="flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.name}</span><span style="font-weight:700;font-size:11px;color:${pct(c.spent,c.budget)>100?"var(--dang)":"var(--text)"}">${fmt(c.spent)}</span></div>`).join("")}
+          ${[...catT].sort((a,b)=>b.spent-a.spent).slice(0,6).map((c,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bord)"><span style="color:var(--sub);font-size:11px;width:16px;font-weight:700">${i+1}</span><span style="font-size:14px">${c.icon}</span><span style="flex:1;font-size:12px">${c.name}</span><span style="font-weight:700;font-size:12px;color:${pct(c.spent,c.budget)>100?"var(--dang)":"var(--text)"}">${fmt(c.spent)}</span></div>`).join("")}
         </div>
       </div>
 
@@ -1051,6 +1068,7 @@ function bindEvents(d){
     setTimeout(()=>{
       const d2=D();
       const{mIncome,mSpent,mSaved,mRate,catT}=d2;
+      const goal=ST.goal;
       let score=100,alertas=[],recomendaciones=[],categorias_reducir=[];
       if(mRate<0){score-=30;alertas.push("Estás gastando más de lo que ganas este mes.");}
       else if(mRate<10){score-=20;alertas.push("Tu tasa de ahorro es muy baja ("+mRate+"%). Lo ideal es al menos 20%.");}

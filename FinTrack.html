@@ -563,7 +563,7 @@ function buildApp(d){
 
   const toastHtml=t?`<div class="toast ${t.type}">${t.msg}<button id="close-toast" style="background:none;border:none;color:inherit;font-size:18px;margin-left:auto;padding:0">×</button></div>`:"";
 
-  const TABS=[{id:"home",ico:"📊",lbl:"Inicio"},{id:"movimientos",ico:"💸",lbl:"Movimientos"},{id:"cuentas",ico:"🏦",lbl:"Cuentas"},{id:"charts",ico:"📈",lbl:"Gráficos"},{id:"ia",ico:"🤖",lbl:"IA"}];
+  const TABS=[{id:"home",ico:"📊",lbl:"Inicio"},{id:"movimientos",ico:"💸",lbl:"Movimientos"},{id:"cuentas",ico:"🏦",lbl:"Cuentas"},{id:"charts",ico:"📈",lbl:"Gráficos"},{id:"budget",ico:"🎯",lbl:"Goals"},{id:"ia",ico:"🤖",lbl:"IA"}];
   const nav=`<nav class="nav">${TABS.map(tb=>`<button class="${tab===tb.id?"act":""}" data-tab="${tb.id}"><span class="ico">${tb.ico}</span>${tb.lbl}</button>`).join("")}</nav>`;
   const header=`<div class="header">
     <div class="logo"><div class="logo-dot"></div>FinTrack</div>
@@ -813,6 +813,103 @@ function buildApp(d){
 
   // ── PRESUPUESTO (Budget tab replaced with settings-like budget in movimientos) ──
   // Budget is now accessible from charts or we add it
+
+  // ── BUDGET / GOALS ──
+  else if(tab==="budget"){
+    const totalBudget=catT.reduce((a,c)=>a+c.budget,0);
+    const totalSpentAll=catT.reduce((a,c)=>a+c.spent,0);
+    const fixedCats=catT.filter(c=>c.fixed);
+    const varCats=catT.filter(c=>!c.fixed);
+    const fixedBudget=fixedCats.reduce((a,c)=>a+c.budget,0);
+    const varBudget=varCats.reduce((a,c)=>a+c.budget,0);
+    const fixedSpent=fixedCats.reduce((a,c)=>a+c.spent,0);
+    const varSpent=varCats.reduce((a,c)=>a+c.spent,0);
+
+    const catCard=(c)=>{
+      const p=pct(c.spent,c.budget);
+      const col=p>=100?"var(--dang)":p>=80?"var(--warn)":"var(--acc)";
+      const avail=c.budget-c.spent;
+      return`<div class="card" style="padding:16px;border-color:${p>=100?"rgba(255,59,92,.25)":p>=80?"rgba(255,107,53,.2)":"var(--bord)"}">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div style="width:40px;height:40px;border-radius:12px;background:${h2r(c.color,.15)};display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">${c.icon}</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:700;font-size:14px">${c.name}</div>
+            <div style="margin-top:3px">${badge(c.fixed?"Fijo":"Variable",c.fixed?"#4d9fff":"#ffc94a")}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:18px;font-weight:900;color:${col};letter-spacing:-.5px">${fmt(c.spent)}</div>
+            <div style="font-size:10px;color:var(--sub)">de ${fmt(c.budget)}</div>
+          </div>
+        </div>
+        <div class="pbar" style="margin-bottom:8px"><div class="fill" style="width:${Math.min(p,100)}%;background:${col}"></div></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-size:11px;color:var(--sub)">${p}% usado</span>
+          <span style="font-size:11px;font-weight:700;color:${avail>=0?"var(--acc)":"var(--dang)"}">${avail>=0?"Libre "+fmt(avail):"Excedido "+fmt(Math.abs(avail))}</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:11px;color:var(--sub);flex-shrink:0">Presupuesto $</span>
+          <input type="number" data-budget="${c.id}" value="${c.budget}" style="flex:1;background:var(--surf);border:1.5px solid var(--bord);border-radius:10px;padding:8px 12px;color:var(--text);font-weight:700;font-size:13px;font-family:inherit"/>
+          <button data-toggle="${c.id}" style="background:${c.fixed?"rgba(77,159,255,.12)":"rgba(255,201,74,.12)"};border:1px solid ${c.fixed?"rgba(77,159,255,.3)":"rgba(255,201,74,.3)"};color:${c.fixed?"var(--blue)":"var(--gold)"};border-radius:9px;padding:8px 12px;font-size:11px;font-weight:700;font-family:inherit;white-space:nowrap">${c.fixed?"Fijo":"Var"}</button>
+        </div>
+        <button data-del-cat="${c.id}" style="margin-top:8px;width:100%;background:rgba(255,59,92,.08);border:1px solid rgba(255,59,92,.2);border-radius:10px;padding:7px;color:var(--dang);font-size:12px;font-weight:600;font-family:inherit">🗑️ Eliminar categoría</button>
+      </div>`;
+    };
+
+    page=`
+      <div class="sec-head"><div><div class="title">Goals & Presupuesto</div><div class="sub">${MONTHS[mo]} · Asignado ${fmt(totalBudget)}</div></div>
+        <button class="btn-sm" id="open-add-cat-exp" style="background:var(--acc);color:#000">+ Categoría</button>
+      </div>
+
+      <!-- Resumen global -->
+      <div class="card glow-acc" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <span style="font-weight:700;font-size:14px">💰 Presupuesto Total</span>
+          <span style="font-weight:900;font-size:16px;color:${totalSpentAll>totalBudget?"var(--dang)":"var(--acc)"}">${fmt(totalSpentAll)} / ${fmt(totalBudget)}</span>
+        </div>
+        <div class="pbar" style="margin-bottom:8px"><div class="fill" style="width:${Math.min(pct(totalSpentAll,totalBudget),100)}%;background:${pc(pct(totalSpentAll,totalBudget))}"></div></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+          <div style="background:rgba(77,159,255,.08);border:1px solid rgba(77,159,255,.2);border-radius:10px;padding:10px">
+            <div style="font-size:9px;color:var(--sub);font-weight:600;letter-spacing:.8px;margin-bottom:4px">GASTOS FIJOS</div>
+            <div style="font-size:15px;font-weight:800;color:var(--blue)">${fmt(fixedSpent)}</div>
+            <div style="font-size:10px;color:var(--sub);margin-top:2px">de ${fmt(fixedBudget)}</div>
+          </div>
+          <div style="background:rgba(255,201,74,.08);border:1px solid rgba(255,201,74,.2);border-radius:10px;padding:10px">
+            <div style="font-size:9px;color:var(--sub);font-weight:600;letter-spacing:.8px;margin-bottom:4px">GASTOS VARIABLES</div>
+            <div style="font-size:15px;font-weight:800;color:var(--gold)">${fmt(varSpent)}</div>
+            <div style="font-size:10px;color:var(--sub);margin-top:2px">de ${fmt(varBudget)}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Meta de ahorro -->
+      <div class="card glow-gold" style="margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-weight:700;font-size:14px">🎯 Meta de Ahorro Mensual</span>
+          <button id="open-goal" class="icon-btn" style="padding:5px 9px;font-size:12px">✏️</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px">
+          <span style="font-size:24px;font-weight:900;color:${mSaved>=goal?"var(--acc)":"var(--gold)"};letter-spacing:-.5px">${fmt(Math.max(mSaved,0))}</span>
+          <span style="font-size:13px;color:var(--sub)">meta: ${fmt(goal)}</span>
+        </div>
+        <div class="pbar" style="margin-bottom:8px"><div class="fill" style="width:${clamp(pct(Math.max(mSaved,0),goal),0,100)}%;background:${mSaved>=goal?"var(--acc)":"var(--gold)"}"></div></div>
+        <div style="font-size:12px;color:var(--sub)">${mSaved>=goal?`✅ ¡Meta alcanzada! Superávit de ${fmt(mSaved-goal)}`:`Faltan ${fmt(goal-Math.max(mSaved,0))} para tu meta`}</div>
+      </div>
+
+      <!-- Fijos -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;margin-top:4px">
+        <span style="font-size:12px;font-weight:700;color:var(--blue);letter-spacing:.5px;text-transform:uppercase">Gastos Fijos</span>
+        <span style="font-size:11px;color:var(--sub)">${fixedCats.length} categorías · ${fmt(fixedBudget)}</span>
+      </div>
+      ${fixedCats.map(catCard).join("")}
+
+      <!-- Variables -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;margin-top:8px">
+        <span style="font-size:12px;font-weight:700;color:var(--gold);letter-spacing:.5px;text-transform:uppercase">Gastos Variables</span>
+        <span style="font-size:11px;color:var(--sub)">${varCats.length} categorías · ${fmt(varBudget)}</span>
+      </div>
+      ${varCats.map(catCard).join("")}
+    `;
+  }
 
   // ── IA ──
   else if(tab==="ia"){
